@@ -1,6 +1,5 @@
 """Export MBPP dataset from HuggingFace cache to JSONL."""
 
-import json
 from pathlib import Path
 
 from datasets import load_dataset

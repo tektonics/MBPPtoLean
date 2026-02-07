@@ -1,18 +1,8 @@
 """TraceAgentSolution: Top-level orchestrator for Python→Lean autoformalization."""
 
-from typing import List, Optional
-
 import dspy
 from loguru import logger
 from pydantic import BaseModel
-
-from mbpp_pipeline.config import Phase4Config
-from mbpp_pipeline.phase1.schema import MBPPEntry
-from mbpp_pipeline.phase3.schema import SolverResult
-from mbpp_pipeline.phase4.baseline_agent import BaselineTranslationAgent, TraceAgentOutput
-from mbpp_pipeline.phase4.bridge import build_benchmark_data, mbpp_to_signature
-from mbpp_pipeline.phase4.self_debug import SelfDebugAgent
-from mbpp_pipeline.phase4.self_improve import SelfImprovementAgent
 from verina.benchmark.report import EvaluationTaskArtifact
 from verina.benchmark.solution import (
     FewshotExample,
@@ -24,16 +14,23 @@ from verina.benchmark.solution import (
     GenSpecOutput,
     SimpleSolution,
 )
-from verina.dataset.schema import Signature
+
+from mbpp_pipeline.config import Phase4Config
+from mbpp_pipeline.phase1.schema import MBPPEntry
+from mbpp_pipeline.phase3.schema import SolverResult
+from mbpp_pipeline.phase4.baseline_agent import BaselineTranslationAgent, TraceAgentOutput
+from mbpp_pipeline.phase4.bridge import mbpp_to_signature
+from mbpp_pipeline.phase4.self_debug import SelfDebugAgent
+from mbpp_pipeline.phase4.self_improve import SelfImprovementAgent
 
 
 class TraceAgentConfig(BaseModel):
     """Configuration for the Trace Agent pipeline."""
 
     baseline_lm: dspy.LM
-    judge_lm: Optional[dspy.LM] = None
-    debug_lm: Optional[dspy.LM] = None
-    improve_lm: Optional[dspy.LM] = None
+    judge_lm: dspy.LM | None = None
+    debug_lm: dspy.LM | None = None
+    improve_lm: dspy.LM | None = None
     dspy_module_cls: type = dspy.Predict
     dspy_module_name: str = "Predict"
     max_debug_iterations: int = 10
@@ -77,7 +74,7 @@ class TraceAgentSolution(SimpleSolution):
                 min_score_threshold=config.min_score_threshold,
             )
             improve_lm = config.improve_lm or config.baseline_lm
-            self.improve_agent: Optional[SelfImprovementAgent] = SelfImprovementAgent(
+            self.improve_agent: SelfImprovementAgent | None = SelfImprovementAgent(
                 judge_lm=config.judge_lm,
                 improve_lm=improve_lm,
                 debug_agent=self.debug_agent,
@@ -140,13 +137,16 @@ class TraceAgentSolution(SimpleSolution):
     # --- SimpleSolution interface methods ---
 
     async def gen_code(
-        self, data_id, input: GenCodeInput,
-        fewshot_examples: List[FewshotExample[GenCodeInput, GenCodeOutput]],
+        self,
+        data_id,
+        input: GenCodeInput,
+        fewshot_examples: list[FewshotExample[GenCodeInput, GenCodeOutput]],
         checkpoint=None,
     ) -> GenCodeOutput:
         """Generate code only (delegates to baseline agent's code generation)."""
         with dspy.context(lm=self.agent_config.baseline_lm):
             from mbpp_pipeline.phase4.signatures import Python2LeanCodeSig
+
             gen = self.agent_config.dspy_module_cls(Python2LeanCodeSig)
             from verina.baseline.generate import clean_output
             from verina.dataset.template import LeanGenerationTaskTemplate
@@ -164,14 +164,17 @@ class TraceAgentSolution(SimpleSolution):
             )
 
     async def gen_spec(
-        self, data_id, input: GenSpecInput,
-        fewshot_examples: List[FewshotExample[GenSpecInput, GenSpecOutput]],
+        self,
+        data_id,
+        input: GenSpecInput,
+        fewshot_examples: list[FewshotExample[GenSpecInput, GenSpecOutput]],
         checkpoint=None,
     ) -> GenSpecOutput:
         """Generate specification only."""
         with dspy.context(lm=self.agent_config.baseline_lm):
-            from mbpp_pipeline.phase4.signatures import Python2LeanSpecSig
             from verina.baseline.generate import clean_output
+
+            from mbpp_pipeline.phase4.signatures import Python2LeanSpecSig
 
             gen = self.agent_config.dspy_module_cls(Python2LeanSpecSig)
             resp = await gen.acall(
@@ -188,17 +191,20 @@ class TraceAgentSolution(SimpleSolution):
             )
 
     async def gen_proof(
-        self, data_id, input: GenProofInput,
-        fewshot_examples: List[FewshotExample[GenProofInput, GenProofOutput]],
+        self,
+        data_id,
+        input: GenProofInput,
+        fewshot_examples: list[FewshotExample[GenProofInput, GenProofOutput]],
         checkpoint=None,
     ) -> GenProofOutput:
         """Generate proof only."""
         with dspy.context(lm=self.agent_config.baseline_lm):
-            from mbpp_pipeline.phase4.signatures import Python2LeanProofSig
             from verina.baseline.generate import (
                 clean_output,
                 proof_task_template_from_input,
             )
+
+            from mbpp_pipeline.phase4.signatures import Python2LeanProofSig
 
             gen = self.agent_config.dspy_module_cls(Python2LeanProofSig)
             task_template = proof_task_template_from_input(input)

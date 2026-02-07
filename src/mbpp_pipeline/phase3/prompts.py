@@ -1,7 +1,6 @@
 """Prompt templates for LLM task solving."""
 
 import re
-from typing import List, Optional
 
 # FIM tokens per model family
 FIM_TOKENS = {
@@ -12,7 +11,7 @@ FIM_TOKENS = {
 }
 
 
-def build_chat_prompt(text: str, test_list: List[str]) -> str:
+def build_chat_prompt(text: str, test_list: list[str]) -> str:
     """Build a chat-style prompt for MBPP task solving."""
     tests_str = "\n".join(test_list)
     return f"""You are an expert Python programmer. Solve the following task.

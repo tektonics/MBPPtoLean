@@ -1,9 +1,11 @@
 """Sub-agent 1: Initial Python→Lean translation."""
 
-from typing import Optional
-
 import dspy
 from loguru import logger
+from pydantic import BaseModel, Field
+from verina.baseline.generate import clean_output, create_placeholder
+from verina.dataset.schema import Signature
+from verina.dataset.template import LeanGenerationTaskTemplate
 
 from mbpp_pipeline.phase1.schema import MBPPEntry
 from mbpp_pipeline.phase3.schema import SolverResult
@@ -13,11 +15,6 @@ from mbpp_pipeline.phase4.signatures import (
     Python2LeanProofSig,
     Python2LeanSpecSig,
 )
-from verina.baseline.generate import clean_output, create_placeholder
-from verina.dataset.schema import Signature
-from verina.dataset.template import LeanGenerationTaskTemplate
-
-from pydantic import BaseModel, Field
 
 
 class TraceAgentOutput(BaseModel):
@@ -32,7 +29,7 @@ class TraceAgentOutput(BaseModel):
     postcond: str = ""
     proof_aux: str = ""
     proof: str = ""
-    compile_success: Optional[bool] = None
+    compile_success: bool | None = None
     judge_scores: dict = Field(default_factory=dict)
     iterations: int = 0
 

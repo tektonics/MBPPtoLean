@@ -1,0 +1,13 @@
+# Ruff formatting configuration
+# Usage: ruff format --config config/formatting/ruff.toml src/ tests/ debug/
+
+line-length = 100
+target-version = "py311"
+
+extend-exclude = ["data", "verina"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true

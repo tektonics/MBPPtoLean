@@ -1,9 +1,7 @@
 """Multi-model task solver for MBPP problems."""
 
 import asyncio
-import json
 from pathlib import Path
-from typing import List, Optional, Union
 
 import dspy
 from loguru import logger
@@ -14,7 +12,6 @@ from mbpp_pipeline.phase2.schema import MutatedEntry
 from mbpp_pipeline.phase3.prompts import build_chat_prompt, extract_python_code
 from mbpp_pipeline.phase3.schema import SolverResult
 from mbpp_pipeline.utils.python_exec import safe_exec
-from verina.utils.lm import LMConfig
 
 
 class SolveMBPPSig(dspy.Signature):
@@ -35,20 +32,17 @@ class TaskSolver:
         self.config = config
         self.lm = config.solver_lm_config.get_model()
 
-    def _build_test_string(self, entry: Union[MBPPEntry, MutatedEntry]) -> str:
+    def _build_test_string(self, entry: MBPPEntry | MutatedEntry) -> str:
         test_list = entry.test_list
         return "\n".join(test_list)
 
-    async def solve_one(
-        self, entry: Union[MBPPEntry, MutatedEntry]
-    ) -> SolverResult:
+    async def solve_one(self, entry: MBPPEntry | MutatedEntry) -> SolverResult:
         """Solve a single MBPP entry."""
         is_mutated = isinstance(entry, MutatedEntry)
         task_id = entry.original_task_id if is_mutated else entry.task_id
         mutation_id = entry.mutation_id if is_mutated else None
         text = entry.text
         test_list = entry.test_list
-        code_for_test = entry.mutated_code if is_mutated else entry.code
 
         try:
             with dspy.context(lm=self.lm):
@@ -73,9 +67,9 @@ class TaskSolver:
             # Test the solution
             test_code = "\n".join(test_list)
             setup = ""
-            if isinstance(entry, MBPPEntry) and entry.test_setup_code:
-                setup = entry.test_setup_code + "\n"
-            elif isinstance(entry, MutatedEntry) and entry.test_setup_code:
+            if (isinstance(entry, MBPPEntry) and entry.test_setup_code) or (
+                isinstance(entry, MutatedEntry) and entry.test_setup_code
+            ):
                 setup = entry.test_setup_code + "\n"
             passes, _ = safe_exec(solution, setup + test_code)
 
@@ -101,24 +95,24 @@ class TaskSolver:
                 error=str(e),
             )
 
-    async def solve_batch(
-        self, entries: List[Union[MBPPEntry, MutatedEntry]]
-    ) -> List[SolverResult]:
+    async def solve_batch(self, entries: list[MBPPEntry | MutatedEntry]) -> list[SolverResult]:
         """Solve a batch of MBPP entries with concurrency control."""
         semaphore = asyncio.Semaphore(self.config.max_concurrent)
 
-        async def _limited(entry: Union[MBPPEntry, MutatedEntry]) -> SolverResult:
+        async def _limited(entry: MBPPEntry | MutatedEntry) -> SolverResult:
             async with semaphore:
                 return await self.solve_one(entry)
 
         tasks = [_limited(e) for e in entries]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        solver_results: List[SolverResult] = []
+        solver_results: list[SolverResult] = []
         for i, r in enumerate(results):
             if isinstance(r, Exception):
                 entry = entries[i]
-                task_id = entry.original_task_id if isinstance(entry, MutatedEntry) else entry.task_id
+                task_id = (
+                    entry.original_task_id if isinstance(entry, MutatedEntry) else entry.task_id
+                )
                 solver_results.append(
                     SolverResult(
                         task_id=task_id,
@@ -134,7 +128,7 @@ class TaskSolver:
         return solver_results
 
 
-def save_solver_results(results: List[SolverResult], output_path: str | Path) -> None:
+def save_solver_results(results: list[SolverResult], output_path: str | Path) -> None:
     """Write SolverResult list to JSONL."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -144,9 +138,9 @@ def save_solver_results(results: List[SolverResult], output_path: str | Path) ->
     logger.info(f"Wrote {len(results)} solver results to {output_path}")
 
 
-def load_solver_results(path: str | Path) -> List[SolverResult]:
+def load_solver_results(path: str | Path) -> list[SolverResult]:
     """Load SolverResult list from JSONL."""
-    results: List[SolverResult] = []
+    results: list[SolverResult] = []
     with open(path) as f:
         for line in f:
             line = line.strip()

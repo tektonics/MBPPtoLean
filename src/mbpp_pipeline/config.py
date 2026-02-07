@@ -2,10 +2,8 @@
 
 import tomllib
 from pathlib import Path
-from typing import List, Optional
 
 from pydantic import BaseModel, Field
-
 from verina.utils.lm import LMConfig
 
 
@@ -16,7 +14,7 @@ class Phase1Config(BaseModel):
 
 class Phase2Config(BaseModel):
     max_mutations_per_entry: int = 3
-    mutation_operators: List[str] = Field(
+    mutation_operators: list[str] = Field(
         default_factory=lambda: [
             "rename_variable",
             "remove_type_annotation",

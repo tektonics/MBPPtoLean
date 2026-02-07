@@ -2,13 +2,12 @@
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from loguru import logger
 from pydantic import BaseModel, Field
+from verina.benchmark.metrics import LeanTestScore
 
 from mbpp_pipeline.phase5.verifier import VerificationResult
-from verina.benchmark.metrics import LeanTestScore
 
 
 class PipelineSummary(BaseModel):
@@ -67,14 +66,14 @@ class PipelineSummary(BaseModel):
 class PipelineReport(BaseModel):
     """Full pipeline report with per-entry results and aggregate summary."""
 
-    results: List[VerificationResult] = Field(default_factory=list)
-    summary: Optional[PipelineSummary] = None
-    adversarial_summary: Optional[PipelineSummary] = None
-    original_summary: Optional[PipelineSummary] = None
+    results: list[VerificationResult] = Field(default_factory=list)
+    summary: PipelineSummary | None = None
+    adversarial_summary: PipelineSummary | None = None
+    original_summary: PipelineSummary | None = None
 
     def compute_summary(
         self,
-        adversarial_ids: Optional[set] = None,
+        adversarial_ids: set | None = None,
     ) -> None:
         """Compute aggregate statistics from individual results."""
         all_results = self.results
@@ -102,18 +101,15 @@ class PipelineReport(BaseModel):
         logger.info(f"Saved verification report to {output_path}")
 
 
-def _compute_summary_for(results: List[VerificationResult]) -> PipelineSummary:
+def _compute_summary_for(results: list[VerificationResult]) -> PipelineSummary:
     """Compute PipelineSummary from a list of VerificationResults."""
     summary = PipelineSummary(total_entries=len(results))
 
     for r in results:
         code_compiles = r.code_score is not None and r.code_score.can_compile
-        code_tests_pass = (
-            r.code_score is not None and r.code_score.score == LeanTestScore.PASS
-        )
-        spec_compiles = (
-            (r.precond_score is not None and r.precond_score.can_compile)
-            or (r.postcond_score is not None and r.postcond_score.can_compile)
+        code_tests_pass = r.code_score is not None and r.code_score.score == LeanTestScore.PASS
+        spec_compiles = (r.precond_score is not None and r.precond_score.can_compile) or (
+            r.postcond_score is not None and r.postcond_score.can_compile
         )
         spec_sound = (
             r.postcond_score is not None

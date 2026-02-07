@@ -1,7 +1,6 @@
 """Typer CLI entry point for the MBPP Lean pipeline."""
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 from loguru import logger
@@ -14,7 +13,7 @@ app = typer.Typer(name="mbpp-pipeline", help="MBPP → Lean 4 adversarial autofo
 @app.command()
 def export(
     config_path: Path = typer.Argument(..., help="Path to pipeline TOML config"),
-    limit: Optional[int] = typer.Option(None, "--limit", "-n", help="Max entries to process"),
+    limit: int | None = typer.Option(None, "--limit", "-n", help="Max entries to process"),
 ) -> None:
     """Phase 1: Export MBPP dataset to JSONL."""
     cfg = PipelineConfig.from_toml(config_path)
@@ -27,7 +26,7 @@ def export(
 @app.command()
 def mutate(
     config_path: Path = typer.Argument(..., help="Path to pipeline TOML config"),
-    limit: Optional[int] = typer.Option(None, "--limit", "-n", help="Max entries to process"),
+    limit: int | None = typer.Option(None, "--limit", "-n", help="Max entries to process"),
 ) -> None:
     """Phase 2: Generate adversarial mutations."""
     cfg = PipelineConfig.from_toml(config_path)
@@ -40,7 +39,7 @@ def mutate(
 @app.command()
 def solve(
     config_path: Path = typer.Argument(..., help="Path to pipeline TOML config"),
-    limit: Optional[int] = typer.Option(None, "--limit", "-n", help="Max entries to process"),
+    limit: int | None = typer.Option(None, "--limit", "-n", help="Max entries to process"),
 ) -> None:
     """Phase 3: Solve tasks with LLMs."""
     cfg = PipelineConfig.from_toml(config_path)
@@ -55,7 +54,7 @@ def solve(
 @app.command()
 def formalize(
     config_path: Path = typer.Argument(..., help="Path to pipeline TOML config"),
-    limit: Optional[int] = typer.Option(None, "--limit", "-n", help="Max entries to formalize"),
+    limit: int | None = typer.Option(None, "--limit", "-n", help="Max entries to formalize"),
 ) -> None:
     """Phase 4: Auto-formalize solutions to Lean 4."""
     cfg = PipelineConfig.from_toml(config_path)
@@ -84,7 +83,9 @@ def verify(
 @app.command()
 def run(
     config_path: Path = typer.Argument(..., help="Path to pipeline TOML config"),
-    limit: Optional[int] = typer.Option(None, "--limit", "-n", help="Max entries to process per phase"),
+    limit: int | None = typer.Option(
+        None, "--limit", "-n", help="Max entries to process per phase"
+    ),
 ) -> None:
     """Run the full pipeline (phases 1-5)."""
     cfg = PipelineConfig.from_toml(config_path)

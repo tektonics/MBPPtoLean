@@ -1,9 +1,7 @@
 """Adversarial dataset generation: mutate + filter semantically equivalent variants."""
 
-import json
 from pathlib import Path
 from random import Random
-from typing import List
 
 from loguru import logger
 
@@ -28,12 +26,12 @@ def check_semantic_equivalence(
 
 
 def build_adversarial_dataset(
-    entries: List[MBPPEntry],
-    operator_names: List[str],
+    entries: list[MBPPEntry],
+    operator_names: list[str],
     max_mutations_per_entry: int = 3,
     require_adversarial_filter: bool = False,
     seed: int = 42,
-) -> List[MutatedEntry]:
+) -> list[MutatedEntry]:
     """Generate mutated variants for each MBPP entry.
 
     Args:
@@ -47,7 +45,7 @@ def build_adversarial_dataset(
         List of MutatedEntry objects.
     """
     rng = Random(seed)
-    operators: List[MutationOperator] = []
+    operators: list[MutationOperator] = []
     for name in operator_names:
         cls = OPERATOR_REGISTRY.get(name)
         if cls is None:
@@ -59,7 +57,7 @@ def build_adversarial_dataset(
         logger.warning("No valid mutation operators; returning empty dataset")
         return []
 
-    results: List[MutatedEntry] = []
+    results: list[MutatedEntry] = []
     for entry in entries:
         tree = parse_python(entry.code)
         count = 0
@@ -86,9 +84,7 @@ def build_adversarial_dataset(
                     )
                     continue
 
-            me = MutatedEntry.from_mbpp_entry(
-                entry, mutated_code, mutation_id, records
-            )
+            me = MutatedEntry.from_mbpp_entry(entry, mutated_code, mutation_id, records)
             me.tests_pass_on_mutated = tests_pass
             results.append(me)
             count += 1
@@ -97,7 +93,7 @@ def build_adversarial_dataset(
     return results
 
 
-def save_mutated_entries(entries: List[MutatedEntry], output_path: str | Path) -> None:
+def save_mutated_entries(entries: list[MutatedEntry], output_path: str | Path) -> None:
     """Write MutatedEntry list to JSONL."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,9 +103,9 @@ def save_mutated_entries(entries: List[MutatedEntry], output_path: str | Path) -
     logger.info(f"Wrote {len(entries)} mutated entries to {output_path}")
 
 
-def load_mutated_entries(path: str | Path) -> List[MutatedEntry]:
+def load_mutated_entries(path: str | Path) -> list[MutatedEntry]:
     """Load MutatedEntry list from JSONL."""
-    entries: List[MutatedEntry] = []
+    entries: list[MutatedEntry] = []
     with open(path) as f:
         for line in f:
             line = line.strip()

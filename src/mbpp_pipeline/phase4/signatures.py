@@ -1,9 +1,7 @@
 """DSPy Signatures for Python→Lean 4 autoformalization."""
 
-import dspy
 from dspy import InputField, OutputField
 from dspy import Signature as DspySignature
-
 
 # --- Signature 1: Python → Lean Code ---
 
@@ -51,9 +49,13 @@ class Python2LeanSpecSig(DspySignature):
     tests = InputField(desc="Python test cases (assert statements)")
     description = InputField(desc="Natural language task description")
     imports = OutputField(desc="Lean 4 imports needed. Keep empty if not needed.")
-    precond_aux = OutputField(desc="Auxiliary definitions for precondition. Keep empty if not needed.")
+    precond_aux = OutputField(
+        desc="Auxiliary definitions for precondition. Keep empty if not needed."
+    )
     precond = OutputField(desc="Lean 4 precondition body (Prop).")
-    postcond_aux = OutputField(desc="Auxiliary definitions for postcondition. Keep empty if not needed.")
+    postcond_aux = OutputField(
+        desc="Auxiliary definitions for postcondition. Keep empty if not needed."
+    )
     postcond = OutputField(desc="Lean 4 postcondition body (Prop).")
 
 
@@ -125,7 +127,9 @@ class LeanJudgeSig(DspySignature):
     python_code = InputField(desc="Original Python code")
     lean_code = InputField(desc="Generated Lean 4 file content")
     description = InputField(desc="Natural language task description")
-    correctness_score = OutputField(desc="Score 1-10: Does the Lean code match the Python semantics?")
+    correctness_score = OutputField(
+        desc="Score 1-10: Does the Lean code match the Python semantics?"
+    )
     completeness_score = OutputField(desc="Score 1-10: How complete is the specification?")
     proof_score = OutputField(desc="Score 1-10: How sound is the proof?")
     feedback = OutputField(desc="Specific, actionable feedback for improvement.")

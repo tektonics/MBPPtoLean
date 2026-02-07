@@ -1,11 +1,10 @@
 """Pipeline orchestrator: runs phases 1-5."""
 
 import asyncio
-import json
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from loguru import logger
+from verina.benchmark.common import BenchmarkSpecEvaluationConfig
 
 from mbpp_pipeline.config import PipelineConfig
 from mbpp_pipeline.phase1.export_mbpp import export_mbpp_to_jsonl, load_mbpp_jsonl
@@ -13,7 +12,6 @@ from mbpp_pipeline.phase1.schema import MBPPEntry
 from mbpp_pipeline.phase1.validate import load_and_validate
 from mbpp_pipeline.phase2.adversarial import (
     build_adversarial_dataset,
-    load_mutated_entries,
     save_mutated_entries,
 )
 from mbpp_pipeline.phase2.schema import MutatedEntry
@@ -29,13 +27,11 @@ from mbpp_pipeline.phase4.lean_builder import build_lean_file
 from mbpp_pipeline.phase4.trace_agent import create_trace_agent
 from mbpp_pipeline.phase5.report import PipelineReport
 from mbpp_pipeline.phase5.verifier import PipelineVerifier, VerificationResult
-from verina.benchmark.common import BenchmarkSpecEvaluationConfig
-
 
 # ── Phase 1 ──────────────────────────────────────────────────────────────────
 
 
-def run_phase1(cfg: PipelineConfig, *, limit: Optional[int] = None) -> List[MBPPEntry]:
+def run_phase1(cfg: PipelineConfig, *, limit: int | None = None) -> list[MBPPEntry]:
     """Export and validate MBPP dataset."""
     entries = export_mbpp_to_jsonl(cfg.phase1.mbpp_cache_dir, cfg.phase1.output_file)
     valid = load_and_validate(entries)
@@ -49,7 +45,7 @@ def run_phase1(cfg: PipelineConfig, *, limit: Optional[int] = None) -> List[MBPP
 # ── Phase 2 ──────────────────────────────────────────────────────────────────
 
 
-def run_phase2(cfg: PipelineConfig, *, limit: Optional[int] = None) -> List[MutatedEntry]:
+def run_phase2(cfg: PipelineConfig, *, limit: int | None = None) -> list[MutatedEntry]:
     """Generate adversarial mutations."""
     entries = load_mbpp_jsonl(cfg.phase1.output_file)
     entries = load_and_validate(entries)
@@ -72,7 +68,7 @@ def run_phase2(cfg: PipelineConfig, *, limit: Optional[int] = None) -> List[Muta
 # ── Phase 3 ──────────────────────────────────────────────────────────────────
 
 
-async def run_phase3(cfg: PipelineConfig, *, limit: Optional[int] = None) -> List[SolverResult]:
+async def run_phase3(cfg: PipelineConfig, *, limit: int | None = None) -> list[SolverResult]:
     """Solve MBPP tasks with LLMs."""
     entries = load_mbpp_jsonl(cfg.phase1.output_file)
     entries = load_and_validate(entries)
@@ -93,10 +89,12 @@ async def run_phase3(cfg: PipelineConfig, *, limit: Optional[int] = None) -> Lis
 # ── Phase 4 ──────────────────────────────────────────────────────────────────
 
 
-async def run_phase4(cfg: PipelineConfig, *, limit: Optional[int] = None) -> Dict[str, TraceAgentOutput]:
+async def run_phase4(
+    cfg: PipelineConfig, *, limit: int | None = None
+) -> dict[str, TraceAgentOutput]:
     """Auto-formalize solutions into Lean 4."""
     entries = load_mbpp_jsonl(cfg.phase1.output_file)
-    entry_map: Dict[int, MBPPEntry] = {e.task_id: e for e in entries}
+    entry_map: dict[int, MBPPEntry] = {e.task_id: e for e in entries}
 
     solver_results = load_solver_results(cfg.phase3.output_file)
 
@@ -110,7 +108,7 @@ async def run_phase4(cfg: PipelineConfig, *, limit: Optional[int] = None) -> Dic
     output_dir = Path(cfg.phase4.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    outputs: Dict[str, TraceAgentOutput] = {}
+    outputs: dict[str, TraceAgentOutput] = {}
     semaphore = asyncio.Semaphore(cfg.max_workers)
 
     async def _process(sr: SolverResult) -> None:
@@ -168,10 +166,10 @@ async def run_phase4(cfg: PipelineConfig, *, limit: Optional[int] = None) -> Dic
 async def run_phase5(cfg: PipelineConfig) -> PipelineReport:
     """Verify Lean artifacts via Verina's evaluation pipeline."""
     entries = load_mbpp_jsonl(cfg.phase1.output_file)
-    entry_map: Dict[int, MBPPEntry] = {e.task_id: e for e in entries}
+    entry_map: dict[int, MBPPEntry] = {e.task_id: e for e in entries}
 
     solver_results = load_solver_results(cfg.phase3.output_file)
-    sr_map: Dict[int, SolverResult] = {sr.task_id: sr for sr in solver_results}
+    sr_map: dict[int, SolverResult] = {sr.task_id: sr for sr in solver_results}
 
     output_dir = Path(cfg.phase4.output_dir)
     eval_config = BenchmarkSpecEvaluationConfig(
@@ -180,7 +178,7 @@ async def run_phase5(cfg: PipelineConfig) -> PipelineReport:
     )
     verifier = PipelineVerifier(eval_config)
 
-    results: List[VerificationResult] = []
+    results: list[VerificationResult] = []
 
     # Load all formalization outputs
     for meta_file in sorted(output_dir.glob("mbpp_*.json")):
@@ -226,7 +224,7 @@ async def run_phase5(cfg: PipelineConfig) -> PipelineReport:
 # ── Full pipeline ────────────────────────────────────────────────────────────
 
 
-async def run_all(cfg: PipelineConfig, *, limit: Optional[int] = None) -> PipelineReport:
+async def run_all(cfg: PipelineConfig, *, limit: int | None = None) -> PipelineReport:
     """Run the full pipeline: phases 1-5."""
     logger.info(f"Starting full pipeline{f' (limit={limit})' if limit else ''}")
 

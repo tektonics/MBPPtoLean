@@ -1,0 +1,32 @@
+# Ruff linting configuration
+# Usage: ruff check --config config/linting/ruff.toml src/ tests/ debug/
+
+line-length = 100
+target-version = "py311"
+
+extend-exclude = ["data", "verina"]
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "T20",  # flake8-print
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function call in argument defaults (typer uses this)
+    "RUF012", # mutable class attributes (pydantic models use these)
+]
+
+[lint.isort]
+known-first-party = ["mbpp_pipeline"]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["T20"]  # allow print in tests

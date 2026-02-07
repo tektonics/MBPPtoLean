@@ -8,3 +8,5 @@ data/
 *.egg-info/
 dist/
 build/
+.hypothesis/
+.pytest_cache/

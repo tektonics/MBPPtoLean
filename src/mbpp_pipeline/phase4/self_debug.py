@@ -7,18 +7,17 @@ Verina's ProofRefinementSolution for the compile→refine loop.
 
 import dspy
 from loguru import logger
-
-from mbpp_pipeline.config import DebugConfig
-from mbpp_pipeline.phase4.baseline_agent import TraceAgentOutput
 from verina.baseline.config import BaselineConfig
 from verina.baseline.proof_refinement import ProofRefinementSolution
 from verina.benchmark.solution import (
-    FewshotExample,
     GenProofInput,
     GenProofOutput,
     merge_imports,
 )
 from verina.dataset.schema import Signature
+
+from mbpp_pipeline.config import DebugConfig
+from mbpp_pipeline.phase4.baseline_agent import TraceAgentOutput
 
 
 class SelfDebugAgent:
@@ -77,7 +76,7 @@ class SelfDebugAgent:
 
         with dspy.context(lm=self.lm):
             proof_output: GenProofOutput = await self.proof_solution.gen_proof(
-                data_id=f"mbpp_debug",
+                data_id="mbpp_debug",
                 input=proof_input,
                 fewshot_examples=[],
             )

@@ -2,12 +2,8 @@
 
 import ast
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from loguru import logger
-
-from mbpp_pipeline.phase1.schema import MBPPEntry
-from mbpp_pipeline.phase3.schema import SolverResult
 from verina.dataset.parsing import BenchmarkLeanData
 from verina.dataset.schema import (
     BenchmarkData,
@@ -17,6 +13,9 @@ from verina.dataset.schema import (
     SpecDesc,
     TestCase,
 )
+
+from mbpp_pipeline.phase1.schema import MBPPEntry
+from mbpp_pipeline.phase3.schema import SolverResult
 
 # Python type -> Lean type mapping
 _PY_TO_LEAN_TYPE = {
@@ -69,8 +68,10 @@ def _python_type_to_lean(py_type: str) -> str:
     if m:
         inner_parts = [_python_type_to_lean(p.strip()) for p in m.group(1).split(",")]
         if len(inner_parts) == 2:
-            return f"({inner_parts[0]} × {inner_parts[1]})"
-        return f"({' × '.join(inner_parts)})"
+            cross = "\u00d7"
+            return f"({inner_parts[0]} {cross} {inner_parts[1]})"
+        cross = "\u00d7"
+        return f"({f' {cross} '.join(inner_parts)})"
 
     # Handle Set[X] -> HashSet X
     m = re.match(r"(?:Set|set)\[(.+)\]", py_type)
@@ -82,7 +83,7 @@ def _python_type_to_lean(py_type: str) -> str:
     return _PY_TO_LEAN_TYPE.get(py_type, "Int")
 
 
-def _extract_func_signature(code: str) -> Optional[Tuple[str, List[Tuple[str, str]], str]]:
+def _extract_func_signature(code: str) -> tuple[str, list[tuple[str, str]], str] | None:
     """Extract function name, parameters, and return type from Python code.
 
     Returns:
@@ -96,21 +97,15 @@ def _extract_func_signature(code: str) -> Optional[Tuple[str, List[Tuple[str, st
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             func_name = node.name
-            params: List[Tuple[str, str]] = []
+            params: list[tuple[str, str]] = []
             for arg in node.args.args:
                 param_name = arg.arg
                 if param_name == "self":
                     continue
-                if arg.annotation:
-                    param_type = ast.unparse(arg.annotation)
-                else:
-                    param_type = "int"  # default fallback
+                param_type = ast.unparse(arg.annotation) if arg.annotation else "int"
                 params.append((param_name, param_type))
 
-            if node.returns:
-                ret_type = ast.unparse(node.returns)
-            else:
-                ret_type = "int"  # default fallback
+            ret_type = ast.unparse(node.returns) if node.returns else "int"
 
             return func_name, params, ret_type
 
@@ -157,9 +152,9 @@ def _parse_assert_value(expr_str: str) -> Any:
 def mbpp_tests_to_verina_tests(
     entry: MBPPEntry,
     signature: Signature,
-) -> Tuple[List[TestCase], List[RejectInput]]:
+) -> tuple[list[TestCase], list[RejectInput]]:
     """Parse MBPP assert statements to extract TestCase and RejectInput objects."""
-    test_cases: List[TestCase] = []
+    test_cases: list[TestCase] = []
 
     for test_str in entry.test_list:
         try:
@@ -171,29 +166,32 @@ def mbpp_tests_to_verina_tests(
             if isinstance(node, ast.Assert):
                 test_node = node.test
                 # Handle assert func(args) == expected
-                if isinstance(test_node, ast.Compare) and len(test_node.ops) == 1:
-                    if isinstance(test_node.ops[0], ast.Eq):
-                        call_node = test_node.left
-                        expected_node = test_node.comparators[0]
+                if (
+                    isinstance(test_node, ast.Compare)
+                    and len(test_node.ops) == 1
+                    and isinstance(test_node.ops[0], ast.Eq)
+                ):
+                    call_node = test_node.left
+                    expected_node = test_node.comparators[0]
 
-                        if isinstance(call_node, ast.Call):
-                            # Extract args
-                            input_dict: Dict[str, Any] = {}
-                            for i, arg in enumerate(call_node.args):
-                                if i < len(signature.parameters):
-                                    pname = signature.parameters[i].param_name
-                                else:
-                                    pname = f"arg{i}"
-                                input_dict[pname] = _parse_assert_value(ast.unparse(arg))
+                    if isinstance(call_node, ast.Call):
+                        # Extract args
+                        input_dict: dict[str, Any] = {}
+                        for i, arg in enumerate(call_node.args):
+                            if i < len(signature.parameters):
+                                pname = signature.parameters[i].param_name
+                            else:
+                                pname = f"arg{i}"
+                            input_dict[pname] = _parse_assert_value(ast.unparse(arg))
 
-                            expected = _parse_assert_value(ast.unparse(expected_node))
-                            test_cases.append(
-                                TestCase(
-                                    input=input_dict,
-                                    expected=expected,
-                                    unexpected=[],
-                                )
+                        expected = _parse_assert_value(ast.unparse(expected_node))
+                        test_cases.append(
+                            TestCase(
+                                input=input_dict,
+                                expected=expected,
+                                unexpected=[],
                             )
+                        )
 
     return test_cases, []
 

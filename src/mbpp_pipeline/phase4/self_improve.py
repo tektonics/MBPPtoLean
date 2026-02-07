@@ -2,14 +2,14 @@
 
 import dspy
 from loguru import logger
+from verina.baseline.generate import clean_output
+from verina.dataset.schema import Signature
 
-from mbpp_pipeline.config import DebugConfig, ImproveConfig
+from mbpp_pipeline.config import ImproveConfig
 from mbpp_pipeline.phase4.baseline_agent import TraceAgentOutput
 from mbpp_pipeline.phase4.lean_builder import build_lean_file
 from mbpp_pipeline.phase4.self_debug import SelfDebugAgent
 from mbpp_pipeline.phase4.signatures import LeanJudgeSig, LeanReflectSig
-from verina.baseline.generate import clean_output
-from verina.dataset.schema import Signature
 
 
 class SelfImprovementAgent:
@@ -103,24 +103,30 @@ class SelfImprovementAgent:
                         description=description,
                     )
 
-                output.imports = clean_output(reflect_resp.imports, isImportsOrAux=True) or output.imports
+                output.imports = (
+                    clean_output(reflect_resp.imports, isImportsOrAux=True) or output.imports
+                )
                 output.code_aux = clean_output(reflect_resp.code_aux, isImportsOrAux=True)
                 output.code = clean_output(reflect_resp.code, isImportsOrAux=False) or output.code
                 output.precond_aux = clean_output(reflect_resp.precond_aux, isImportsOrAux=True)
-                output.precond = clean_output(reflect_resp.precond, isImportsOrAux=False) or output.precond
+                output.precond = (
+                    clean_output(reflect_resp.precond, isImportsOrAux=False) or output.precond
+                )
                 output.postcond_aux = clean_output(reflect_resp.postcond_aux, isImportsOrAux=True)
-                output.postcond = clean_output(reflect_resp.postcond, isImportsOrAux=False) or output.postcond
+                output.postcond = (
+                    clean_output(reflect_resp.postcond, isImportsOrAux=False) or output.postcond
+                )
                 output.proof_aux = clean_output(reflect_resp.proof_aux, isImportsOrAux=True)
-                output.proof = clean_output(reflect_resp.proof, isImportsOrAux=False) or output.proof
+                output.proof = (
+                    clean_output(reflect_resp.proof, isImportsOrAux=False) or output.proof
+                )
 
             except Exception as e:
                 logger.error(f"Improve iteration {iteration}: reflection failed: {e}")
                 return output
 
             # Re-run debug loop to verify compilation after improvement
-            output = await self.debug_agent.debug_loop(
-                output, signature, description
-            )
+            output = await self.debug_agent.debug_loop(output, signature, description)
 
         return output
 

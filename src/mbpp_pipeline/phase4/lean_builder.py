@@ -1,7 +1,5 @@
 """Assemble final .lean file from TraceAgentOutput using Verina templates."""
 
-from typing import List
-
 from verina.dataset.schema import Signature, TestCase
 from verina.dataset.template import LeanGenerationTaskTemplate
 
@@ -75,7 +73,7 @@ def build_lean_file_for_verification(
     postcond: str,
     proof_aux: str,
     proof: str,
-    tests: List[TestCase],
+    tests: list[TestCase],
     task_imports: str = "",
     task_aux: str = "",
 ) -> str:

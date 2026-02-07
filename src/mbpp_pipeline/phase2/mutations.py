@@ -2,17 +2,29 @@
 
 from abc import ABC, abstractmethod
 from random import Random
-from typing import List, Tuple
 
 from tree_sitter import Node, Tree
 
 from mbpp_pipeline.phase2.schema import MutationRecord, MutationType
-from mbpp_pipeline.utils.treesitter import parse_python
 
 # Common variable name pool for renaming
 _VAR_NAMES = [
-    "val", "arg", "param", "item", "elem", "data", "obj", "tmp",
-    "inp", "res", "acc", "cur", "prev", "nxt", "idx", "cnt",
+    "val",
+    "arg",
+    "param",
+    "item",
+    "elem",
+    "data",
+    "obj",
+    "tmp",
+    "inp",
+    "res",
+    "acc",
+    "cur",
+    "prev",
+    "nxt",
+    "idx",
+    "cnt",
 ]
 
 # Builtin type aliases
@@ -23,9 +35,7 @@ class MutationOperator(ABC):
     """Base class for tree-sitter based mutation operators."""
 
     @abstractmethod
-    def apply(
-        self, source: str, tree: Tree, rng: Random
-    ) -> Tuple[str, List[MutationRecord]]:
+    def apply(self, source: str, tree: Tree, rng: Random) -> tuple[str, list[MutationRecord]]:
         """Apply mutation to source code.
 
         Returns:
@@ -34,9 +44,9 @@ class MutationOperator(ABC):
         ...
 
 
-def _collect_nodes(node: Node, type_name: str) -> List[Node]:
+def _collect_nodes(node: Node, type_name: str) -> list[Node]:
     """Recursively collect all nodes of a given type."""
-    results: List[Node] = []
+    results: list[Node] = []
     if node.type == type_name:
         results.append(node)
     for child in node.children:
@@ -44,7 +54,7 @@ def _collect_nodes(node: Node, type_name: str) -> List[Node]:
     return results
 
 
-def _replace_ranges(source: str, replacements: List[Tuple[int, int, str]]) -> str:
+def _replace_ranges(source: str, replacements: list[tuple[int, int, str]]) -> str:
     """Apply byte-range replacements to source (sorted descending to preserve offsets)."""
     source_bytes = source.encode("utf-8")
     for start, end, new_text in sorted(replacements, key=lambda r: r[0], reverse=True):
@@ -55,10 +65,8 @@ def _replace_ranges(source: str, replacements: List[Tuple[int, int, str]]) -> st
 class RenameVariableOperator(MutationOperator):
     """Rename function/method parameter identifiers."""
 
-    def apply(
-        self, source: str, tree: Tree, rng: Random
-    ) -> Tuple[str, List[MutationRecord]]:
-        records: List[MutationRecord] = []
+    def apply(self, source: str, tree: Tree, rng: Random) -> tuple[str, list[MutationRecord]]:
+        records: list[MutationRecord] = []
 
         # Find all function definitions
         func_nodes = _collect_nodes(tree.root_node, "function_definition")
@@ -71,7 +79,7 @@ class RenameVariableOperator(MutationOperator):
             return source, records
 
         # Collect parameter identifiers (skip self)
-        param_ids: List[Node] = []
+        param_ids: list[Node] = []
         for child in params_node.children:
             if child.type == "identifier" and child.text.decode() != "self":
                 param_ids.append(child)
@@ -95,9 +103,7 @@ class RenameVariableOperator(MutationOperator):
         refs = _collect_nodes(body_node, "identifier")
         refs = [r for r in refs if r.text.decode() == old_name]
 
-        replacements: List[Tuple[int, int, str]] = [
-            (target.start_byte, target.end_byte, new_name)
-        ]
+        replacements: list[tuple[int, int, str]] = [(target.start_byte, target.end_byte, new_name)]
         for ref in refs:
             replacements.append((ref.start_byte, ref.end_byte, new_name))
 
@@ -116,23 +122,21 @@ class RenameVariableOperator(MutationOperator):
 class RemoveTypeAnnotationOperator(MutationOperator):
     """Strip type annotations from function parameters and return types."""
 
-    def apply(
-        self, source: str, tree: Tree, rng: Random
-    ) -> Tuple[str, List[MutationRecord]]:
-        records: List[MutationRecord] = []
+    def apply(self, source: str, tree: Tree, rng: Random) -> tuple[str, list[MutationRecord]]:
+        records: list[MutationRecord] = []
 
         func_nodes = _collect_nodes(tree.root_node, "function_definition")
         if not func_nodes:
             return source, records
 
-        replacements: List[Tuple[int, int, str]] = []
+        replacements: list[tuple[int, int, str]] = []
 
         for func_node in func_nodes:
             # Remove return type annotation
             return_type = func_node.child_by_field_name("return_type")
             if return_type is not None:
                 # Find the -> token before the return type
-                for i, child in enumerate(func_node.children):
+                for _i, child in enumerate(func_node.children):
                     if child.type == "->" or (child.type == "type" and child == return_type):
                         # Remove from -> to end of return type
                         arrow_node = None
@@ -141,9 +145,7 @@ class RemoveTypeAnnotationOperator(MutationOperator):
                                 arrow_node = c
                                 break
                         if arrow_node:
-                            replacements.append(
-                                (arrow_node.start_byte, return_type.end_byte, "")
-                            )
+                            replacements.append((arrow_node.start_byte, return_type.end_byte, ""))
                             records.append(
                                 MutationRecord(
                                     mutation_type=MutationType.REMOVE_TYPE_ANNOTATION,
@@ -187,10 +189,8 @@ class RemoveTypeAnnotationOperator(MutationOperator):
 class RenameUserTypeOperator(MutationOperator):
     """Rename user-defined class names and propagate references."""
 
-    def apply(
-        self, source: str, tree: Tree, rng: Random
-    ) -> Tuple[str, List[MutationRecord]]:
-        records: List[MutationRecord] = []
+    def apply(self, source: str, tree: Tree, rng: Random) -> tuple[str, list[MutationRecord]]:
+        records: list[MutationRecord] = []
 
         class_nodes = _collect_nodes(tree.root_node, "class_definition")
         if not class_nodes:
@@ -223,16 +223,13 @@ class RenameUserTypeOperator(MutationOperator):
 class RenameBuiltinTypeOperator(MutationOperator):
     """Insert aliases for builtin types and replace annotation-only references."""
 
-    def apply(
-        self, source: str, tree: Tree, rng: Random
-    ) -> Tuple[str, List[MutationRecord]]:
-        records: List[MutationRecord] = []
+    def apply(self, source: str, tree: Tree, rng: Random) -> tuple[str, list[MutationRecord]]:
+        records: list[MutationRecord] = []
 
         # Scan for builtin type references in annotations
         all_ids = _collect_nodes(tree.root_node, "identifier")
         builtin_refs = [
-            n for n in all_ids
-            if n.text.decode() in _BUILTIN_TYPES and _is_annotation_context(n)
+            n for n in all_ids if n.text.decode() in _BUILTIN_TYPES and _is_annotation_context(n)
         ]
 
         if not builtin_refs:
@@ -244,9 +241,7 @@ class RenameBuiltinTypeOperator(MutationOperator):
         alias_name = f"My{old_type.capitalize()}"
 
         # Collect all annotation references to this type
-        refs = [
-            n for n in builtin_refs if n.text.decode() == old_type
-        ]
+        refs = [n for n in builtin_refs if n.text.decode() == old_type]
 
         # Build alias line
         alias_line = f"{alias_name} = {old_type}\n"
@@ -272,7 +267,11 @@ def _is_annotation_context(node: Node) -> bool:
         return False
     if parent.type in ("type", "typed_parameter", "function_definition"):
         return True
-    if parent.type == "subscript" and parent.parent and parent.parent.type in ("type", "typed_parameter"):
+    if (
+        parent.type == "subscript"
+        and parent.parent
+        and parent.parent.type in ("type", "typed_parameter")
+    ):
         return True
     return _is_annotation_context(parent) if parent.type in ("subscript", "attribute") else False
 

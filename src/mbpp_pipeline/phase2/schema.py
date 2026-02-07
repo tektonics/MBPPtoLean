@@ -1,14 +1,13 @@
 """Schema for Phase 2: Adversarial mutations."""
 
-from enum import Enum
-from typing import List, Optional
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 from mbpp_pipeline.phase1.schema import MBPPEntry
 
 
-class MutationType(str, Enum):
+class MutationType(StrEnum):
     RENAME_VARIABLE = "rename_variable"
     REMOVE_TYPE_ANNOTATION = "remove_type_annotation"
     RENAME_USER_TYPE = "rename_user_type"
@@ -19,7 +18,7 @@ class MutationRecord(BaseModel):
     mutation_type: MutationType
     original: str = Field(description="Original text that was mutated")
     replacement: str = Field(description="Replacement text")
-    location: Optional[str] = Field(default=None, description="Location in AST")
+    location: str | None = Field(default=None, description="Location in AST")
 
 
 class MutatedEntry(BaseModel):
@@ -28,18 +27,18 @@ class MutatedEntry(BaseModel):
     text: str
     original_code: str
     mutated_code: str
-    test_list: List[str]
+    test_list: list[str]
     test_setup_code: str = ""
-    challenge_test_list: List[str] = Field(default_factory=list)
-    mutations_applied: List[MutationRecord] = Field(default_factory=list)
-    tests_pass_on_mutated: Optional[bool] = None
+    challenge_test_list: list[str] = Field(default_factory=list)
+    mutations_applied: list[MutationRecord] = Field(default_factory=list)
+    tests_pass_on_mutated: bool | None = None
 
     @staticmethod
     def from_mbpp_entry(
         entry: MBPPEntry,
         mutated_code: str,
         mutation_id: str,
-        mutations: List[MutationRecord],
+        mutations: list[MutationRecord],
     ) -> "MutatedEntry":
         return MutatedEntry(
             original_task_id=entry.task_id,

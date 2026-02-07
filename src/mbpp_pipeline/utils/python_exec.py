@@ -1,11 +1,9 @@
 """Safe Python execution sandbox using subprocess."""
 
 import subprocess
-import textwrap
-from typing import Tuple
 
 
-def safe_exec(code: str, test_code: str, timeout: int = 10) -> Tuple[bool, str]:
+def safe_exec(code: str, test_code: str, timeout: int = 10) -> tuple[bool, str]:
     """Execute Python code + tests in a subprocess sandbox.
 
     Args:

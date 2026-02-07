@@ -1,12 +1,7 @@
 """Phase 5: Verification via Verina pipeline."""
 
-from typing import Optional
-
 from loguru import logger
 from pydantic import BaseModel
-
-from mbpp_pipeline.phase4.baseline_agent import TraceAgentOutput
-from mbpp_pipeline.phase4.lean_builder import build_lean_file
 from verina.benchmark.common import BenchmarkSpecEvaluationConfig
 from verina.benchmark.metrics import (
     CodeMetricScore,
@@ -18,24 +13,26 @@ from verina.benchmark.metrics import (
     metric_generated_spec_unit_test_entry,
 )
 from verina.benchmark.report import EvaluationTaskArtifact
-from verina.dataset.schema import BenchmarkData, Signature
+from verina.dataset.schema import BenchmarkData
 from verina.dataset.template import LeanGenerationTaskTemplate
+
+from mbpp_pipeline.phase4.baseline_agent import TraceAgentOutput
 
 
 class VerificationResult(BaseModel):
     """Aggregated verification result for a single entry."""
 
     task_id: str
-    code_score: Optional[CodeMetricScore] = None
-    precond_score: Optional[SpecMetricScore] = None
-    postcond_score: Optional[SpecMetricScore] = None
-    proof_score: Optional[ProofMetricScore] = None
+    code_score: CodeMetricScore | None = None
+    precond_score: SpecMetricScore | None = None
+    postcond_score: SpecMetricScore | None = None
+    proof_score: ProofMetricScore | None = None
 
 
 class PipelineVerifier:
     """Delegates verification to Verina's metric functions."""
 
-    def __init__(self, eval_spec_config: Optional[BenchmarkSpecEvaluationConfig] = None):
+    def __init__(self, eval_spec_config: BenchmarkSpecEvaluationConfig | None = None):
         self.eval_spec_config = eval_spec_config or BenchmarkSpecEvaluationConfig()
 
     async def verify_code(
@@ -57,9 +54,7 @@ class PipelineVerifier:
         template = LeanGenerationTaskTemplate(data.signature)
 
         # First check compilation
-        score = await metric_generated_spec_compile(
-            None, template, data, artifact, evaluate_type
-        )
+        score = await metric_generated_spec_compile(None, template, data, artifact, evaluate_type)
 
         # Then run unit tests if compilation succeeded
         if score.can_compile and self.eval_spec_config.unit_test:
