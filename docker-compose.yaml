@@ -1,0 +1,41 @@
+services:
+  prefect-postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: prefect
+    ports:
+      - "15432:5432"
+    volumes:
+      - prefectdb:/var/lib/postgresql/data
+
+  prefect-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["uv", "run", "prefect", "server", "start", "--host", "0.0.0.0"]
+    env_file: .env
+    environment:
+      PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://postgres:test@prefect-postgres:5432/prefect
+    ports:
+      - "4200:4200"
+    depends_on:
+      - prefect-postgres
+
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      PREFECT_API_URL: http://prefect-server:4200/api
+    volumes:
+      - ./data:/app/mbpp_lean_pipeline/data
+      - ./configs:/app/mbpp_lean_pipeline/configs
+    depends_on:
+      - prefect-postgres
+      - prefect-server
+
+volumes:
+  prefectdb:

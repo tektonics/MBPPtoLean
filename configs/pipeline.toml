@@ -1,0 +1,49 @@
+output_dir = "data"
+max_workers = 16
+verina_root = "./verina"
+
+[phase1]
+mbpp_cache_dir = "data/mbpp_cache"
+output_file = "data/mbpp_full.jsonl"
+
+[phase2]
+max_mutations_per_entry = 3
+mutation_operators = ["rename_variable", "remove_type_annotation", "rename_user_type", "rename_builtin_type"]
+require_adversarial_filter = false
+output_file = "data/mbpp_mutated.jsonl"
+seed = 42
+
+[phase3]
+prompt_style = "chat"
+output_file = "data/solver_results.jsonl"
+max_concurrent = 16
+
+[phase3.solver_lm_config]
+provider = "anthropic"
+model_name = "claude-sonnet-4-5-20250929"
+
+[phase4]
+dspy_module = "Predict"
+output_dir = "data/lean_artifacts"
+
+[phase4.baseline_lm_config]
+provider = "anthropic"
+model_name = "claude-sonnet-4-5-20250929"
+
+[phase4.judge_lm_config]
+provider = "anthropic"
+model_name = "claude-sonnet-4-5-20250929"
+
+[phase4.debug_config]
+max_iterations = 10
+
+[phase4.improve_config]
+max_iterations = 3
+min_score_threshold = 7
+
+[phase5]
+output_file = "data/verification_report.json"
+
+[phase5.eval_spec_config]
+unit_test = true
+use_plausible_pass = true
