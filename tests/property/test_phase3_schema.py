@@ -20,7 +20,7 @@ def test_solver_result_roundtrip(task_id, passes, solution):  # A
         mutation_id=None,
         model_name="test-model",
         prompt_style="chat",
-        generated_solution=solution if solution else None,
+        generated_solution=solution,
         passes_tests=passes,
         is_from_adversarial=False,
         error=None,
