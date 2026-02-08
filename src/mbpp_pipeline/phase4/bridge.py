@@ -80,10 +80,125 @@ def _python_type_to_lean(py_type: str) -> str:
         return f"HashSet {inner}"
 
     # Simple type lookup
-    return _PY_TO_LEAN_TYPE.get(py_type, "Int")
+    if py_type in _PY_TO_LEAN_TYPE:
+        return _PY_TO_LEAN_TYPE[py_type]
+    # Pass through capitalized names as custom types (e.g. "Pair" → "Pair")
+    if py_type and py_type[0].isupper():
+        return py_type
+    return "Int"
 
 
-def _extract_func_signature(code: str) -> tuple[str, list[tuple[str, str]], str] | None:
+def _infer_node_type(node: ast.expr) -> str | None:  # //A
+    """Infer a Python type string from an AST expression node."""
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool):
+            return "bool"
+        if isinstance(node.value, int):
+            return "int"
+        if isinstance(node.value, float):
+            return "float"
+        if isinstance(node.value, str):
+            return "str"
+        return None
+
+    if isinstance(node, ast.List):
+        if not node.elts:
+            return "list"
+        inner = _infer_node_type(node.elts[0])
+        return f"List[{inner}]" if inner else "list"
+
+    if isinstance(node, ast.Tuple):
+        inner_types = [_infer_node_type(e) for e in node.elts]
+        if all(inner_types):
+            return f"Tuple[{', '.join(t for t in inner_types if t)}]"
+        return "tuple"
+
+    if isinstance(node, ast.Set):
+        if not node.elts:
+            return "set"
+        inner = _infer_node_type(node.elts[0])
+        return f"Set[{inner}]" if inner else "set"
+
+    if isinstance(node, ast.Dict):
+        if not node.keys or node.keys[0] is None:
+            return "dict"
+        k = _infer_node_type(node.keys[0])
+        v = _infer_node_type(node.values[0]) if node.values else None
+        if k and v:
+            return f"Dict[{k}, {v}]"
+        return "dict"
+
+    if isinstance(node, ast.Call):
+        # e.g. Pair(5, 24) → "Pair"
+        if isinstance(node.func, ast.Name):
+            return node.func.id
+        return None
+
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        # Negative number literal like -1010
+        inner = _infer_node_type(node.operand)
+        return inner
+
+    return None
+
+
+def _infer_types_from_tests(  # //A
+    func_name: str, test_list: list[str]
+) -> list[str | None]:
+    """Infer parameter types from test assertions.
+
+    Returns a list of inferred Python type strings, one per positional arg.
+    None means inference failed for that position.
+    """
+    inferred: list[str | None] = []
+
+    for test_str in test_list:
+        try:
+            tree = ast.parse(test_str.strip())
+        except SyntaxError:
+            continue
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assert):
+                continue
+            test_node = node.test
+            # Handle assert func(...) == expected
+            call_node = None
+            if isinstance(test_node, ast.Compare) and isinstance(test_node.left, ast.Call):
+                call_node = test_node.left
+            elif isinstance(test_node, ast.Call):
+                call_node = test_node
+            if call_node is None:
+                continue
+
+            # Check function name matches
+            if isinstance(call_node.func, ast.Name) and call_node.func.id == func_name:
+                pass
+            elif isinstance(call_node.func, ast.Attribute) and call_node.func.attr == func_name:
+                pass
+            else:
+                continue
+
+            # Infer type for each positional argument
+            for i, arg in enumerate(call_node.args):
+                arg_type = _infer_node_type(arg)
+                # Extend inferred list if needed
+                while len(inferred) <= i:
+                    inferred.append(None)
+                # Keep first successful inference per position
+                if inferred[i] is None and arg_type is not None:
+                    inferred[i] = arg_type
+
+        # Stop after first successful parse with results
+        if any(t is not None for t in inferred):
+            break
+
+    return inferred
+
+
+def _extract_func_signature(
+    code: str, test_list: list[str] | None = None
+) -> tuple[str, list[tuple[str, str]], str] | None:
     """Extract function name, parameters, and return type from Python code.
 
     Returns:
@@ -97,13 +212,26 @@ def _extract_func_signature(code: str) -> tuple[str, list[tuple[str, str]], str]
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             func_name = node.name
+
+            # Infer types from tests if available
+            test_inferred: list[str | None] = []
+            if test_list:
+                test_inferred = _infer_types_from_tests(func_name, test_list)
+
             params: list[tuple[str, str]] = []
+            param_idx = 0
             for arg in node.args.args:
                 param_name = arg.arg
                 if param_name == "self":
                     continue
-                param_type = ast.unparse(arg.annotation) if arg.annotation else "int"
+                if arg.annotation:
+                    param_type = ast.unparse(arg.annotation)
+                elif param_idx < len(test_inferred) and test_inferred[param_idx] is not None:
+                    param_type = test_inferred[param_idx]
+                else:
+                    param_type = "int"
                 params.append((param_name, param_type))
+                param_idx += 1
 
             ret_type = ast.unparse(node.returns) if node.returns else "int"
 
@@ -118,9 +246,9 @@ def mbpp_to_signature(entry: MBPPEntry, solution_code: str) -> Signature:
     Uses the solution code (or original code) to extract function info.
     Falls back to entry.code if solution has no function definitions.
     """
-    result = _extract_func_signature(solution_code)
+    result = _extract_func_signature(solution_code, entry.test_list)
     if result is None:
-        result = _extract_func_signature(entry.code)
+        result = _extract_func_signature(entry.code, entry.test_list)
     if result is None:
         # Last resort: make a generic signature
         return Signature(
