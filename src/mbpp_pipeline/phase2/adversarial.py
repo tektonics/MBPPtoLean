@@ -1,5 +1,6 @@
 """Adversarial dataset generation: mutate + filter semantically equivalent variants."""
 
+import re
 from pathlib import Path
 from random import Random
 
@@ -7,7 +8,7 @@ from loguru import logger
 
 from mbpp_pipeline.phase1.schema import MBPPEntry
 from mbpp_pipeline.phase2.mutations import OPERATOR_REGISTRY, MutationOperator
-from mbpp_pipeline.phase2.schema import MutatedEntry
+from mbpp_pipeline.phase2.schema import MutatedEntry, MutationType
 from mbpp_pipeline.utils.python_exec import safe_exec
 from mbpp_pipeline.utils.treesitter import parse_python
 
@@ -23,6 +24,16 @@ def check_semantic_equivalence(
         test_code = entry.test_setup_code + "\n" + test_code
     passed, _ = safe_exec(mutated_code, test_code, timeout=timeout)
     return passed
+
+
+def _validate_compilable_python(code: str) -> bool:  # A
+    """Return True if code compiles as valid Python."""
+    try:
+        compile(code, "<string>", "exec")
+        return True
+    except (SyntaxError, ValueError, TypeError):
+        logger.debug("Mutated code failed compilation check")
+        return False
 
 
 def build_adversarial_dataset(
@@ -73,6 +84,13 @@ def build_adversarial_dataset(
             if not records or mutated_code == entry.code:
                 continue
 
+            if not _validate_compilable_python(mutated_code):
+                logger.debug(
+                    f"Task {entry.task_id}, op {op.__class__.__name__}: "
+                    "mutated code is not compilable, skipping"
+                )
+                continue
+
             mutation_id = f"{entry.task_id}_{records[0].mutation_type.value}_{count}"
 
             tests_pass: bool | None = None
@@ -85,6 +103,18 @@ def build_adversarial_dataset(
                     continue
 
             me = MutatedEntry.from_mbpp_entry(entry, mutated_code, mutation_id, records)
+
+            # Propagate class renames to test strings  # A
+            for rec in records:
+                if rec.mutation_type == MutationType.RENAME_USER_TYPE:
+                    pattern = re.compile(r"\b" + re.escape(rec.original) + r"\b")
+                    me.test_list = [pattern.sub(rec.replacement, t) for t in me.test_list]
+                    if me.test_setup_code:
+                        me.test_setup_code = pattern.sub(rec.replacement, me.test_setup_code)
+                    me.challenge_test_list = [
+                        pattern.sub(rec.replacement, t) for t in me.challenge_test_list
+                    ]
+
             me.tests_pass_on_mutated = tests_pass
             results.append(me)
             count += 1
