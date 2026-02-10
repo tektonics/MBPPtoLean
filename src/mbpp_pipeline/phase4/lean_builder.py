@@ -2,6 +2,7 @@
 
 from verina.dataset.schema import Signature, TestCase
 from verina.dataset.template import LeanGenerationTaskTemplate
+from verina.lean import sanitize_lean_imports
 
 
 def build_lean_file(
@@ -31,7 +32,9 @@ def build_lean_file(
 
     # Solution imports
     if imports.strip():
-        content += template.render_imports(imports, "llm_solution") + "\n"
+        content += template.render_imports(
+            sanitize_lean_imports(imports), "llm_solution"
+        ) + "\n"
 
     # Task aux
     if task_aux.strip():
