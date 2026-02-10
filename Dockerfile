@@ -45,17 +45,18 @@ RUN touch /app/verina/README.md
 # Copy pipeline project
 COPY pyproject.toml /app/mbpp_lean_pipeline/pyproject.toml
 
-# Install all Python deps
-RUN cd /app/mbpp_lean_pipeline && uv sync
+# Install all Python deps (including test dependencies)
+RUN cd /app/mbpp_lean_pipeline && uv sync --extra dev
 
 # Stage 3: Final image
 FROM python-base AS runtime
 
 WORKDIR /app/mbpp_lean_pipeline
 
-# Copy pipeline source code
+# Copy pipeline source code and tests
 COPY src /app/mbpp_lean_pipeline/src
 COPY configs /app/mbpp_lean_pipeline/configs
+COPY tests /app/mbpp_lean_pipeline/tests
 
 ENV PYTHONPATH="/app/verina/src:/app/mbpp_lean_pipeline/src:${PYTHONPATH}"
 ENV LEAN_WORKING_DIR="/app/verina"
