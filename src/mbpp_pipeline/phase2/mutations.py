@@ -101,7 +101,12 @@ class RenameVariableOperator(MutationOperator):
             return source, records
 
         refs = _collect_nodes(body_node, "identifier")
-        refs = [r for r in refs if r.text.decode() == old_name]
+        refs = [
+            r for r in refs
+            if r.text.decode() == old_name
+            and not _is_attribute_name(r)
+            and not _is_keyword_arg_name(r)
+        ]
 
         replacements: list[tuple[int, int, str]] = [(target.start_byte, target.end_byte, new_name)]
         for ref in refs:
@@ -274,6 +279,26 @@ def _is_annotation_context(node: Node) -> bool:
     ):
         return True
     return _is_annotation_context(parent) if parent.type in ("subscript", "attribute") else False
+
+
+def _is_attribute_name(node: Node) -> bool:  # A
+    """Check if node is the attribute field of a dotted access (e.g., 'a' in 'self.a')."""
+    parent = node.parent
+    return (
+        parent is not None
+        and parent.type == "attribute"
+        and parent.child_by_field_name("attribute") == node
+    )
+
+
+def _is_keyword_arg_name(node: Node) -> bool:  # A
+    """Check if node is the name field of a keyword argument (e.g., 'a' in 'foo(a=1)')."""
+    parent = node.parent
+    return (
+        parent is not None
+        and parent.type == "keyword_argument"
+        and parent.child_by_field_name("name") == node
+    )
 
 
 OPERATOR_REGISTRY = {
