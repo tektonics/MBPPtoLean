@@ -89,14 +89,15 @@ class SelfDebugAgent:
         if proof_output.imports.strip():
             output.imports = merge_imports([output.imports, proof_output.imports])
 
-        # Check if refinement succeeded (extra_info has refined_times if so)
-        refined_times = proof_output.extra_info.get("refined_times", 0)
-        output.compile_success = refined_times > 0
-        output.iterations = refined_times
+        # Read explicit status flags from extra_info  #A
+        output.compile_success = proof_output.extra_info.get("compile_success", False)
+        output.iterations = proof_output.extra_info.get("refined_times", 0)
+        output.tactic_solved = proof_output.extra_info.get("tactic_solved", False)
 
         logger.info(
-            f"Proof generation: refined_times={refined_times}, "
-            f"compile_success={output.compile_success}"
+            f"Proof generation: iterations={output.iterations}, "
+            f"compile_success={output.compile_success}, "
+            f"tactic_solved={output.tactic_solved}"
         )
 
         return output

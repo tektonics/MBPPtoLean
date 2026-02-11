@@ -32,6 +32,7 @@ class TraceAgentOutput(BaseModel):
     compile_success: bool | None = None
     judge_scores: dict = Field(default_factory=dict)
     iterations: int = 0
+    tactic_solved: bool = False  #A
 
 
 class BaselineTranslationAgent:
